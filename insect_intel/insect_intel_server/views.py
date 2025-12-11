@@ -4,6 +4,12 @@ from rest_framework import status
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny 
 from .models import RawFrameUpload  
+from django.shortcuts import render
+
+
+def landing_page_view(request):
+
+    return render(request, 'landing.html', {})
 
 class SimpleUploadView(APIView):
 
