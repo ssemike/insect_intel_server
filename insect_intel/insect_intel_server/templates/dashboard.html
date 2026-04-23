@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard | Insect Intel{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <h1 class="page-title">Overview</h1>
+    <p class="page-subtitle">Real-time status and recent activity from all connected devices.</p>
+</div>
+
+<div class="dashboard-grid animate-in" style="animation-delay: 0.1s;">
+    <div class="card">
+        <div class="card-title">Connected Devices</div>
+        <div class="stat-value">{{ device_count }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Total Diagnostics</div>
+        <div class="stat-value">{{ diagnostic_count }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Telemetry Packets</div>
+        <div class="stat-value">{{ diagnostic_count }}</div>
+    </div>
+    <div class="card">
+        <div class="card-title">Images Captured</div>
+        <div class="stat-value">{{ image_count }}</div>
+    </div>
+</div>
+
+<div class="dashboard-grid animate-in" style="grid-template-columns: 2fr 1fr; animation-delay: 0.2s;">
+    <div class="card">
+        <div class="card-title">Recent Diagnostics</div>
+        <div class="table-container" style="border: none; margin-bottom: 0;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Device ID</th>
+                        <th>Time</th>
+                        <th>Battery</th>
+                        <th>SOH</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for diag in recent_diagnostics %}
+                    <tr>
+                        <td class="mono">{{ diag.device_id }}</td>
+                        <td class="text-muted">{{ diag.received_at|date:"H:i:s" }}</td>
+                        <td>
+                            <span class="badge {% if diag.soc > 20 %}badge-success{% else %}badge-danger{% endif %}">
+                                {{ diag.soc }}%
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-primary">{{ diag.soh|default:"-" }}%</span>
+                        </td>
+                        <td>
+                            <a href="{% url 'diagnostic_detail' diag.id %}" class="nav-link" style="padding: 0.25rem; font-size: 0.75rem;">View</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-muted">No telemetry received yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Latest Images</div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+            {% for img in recent_images %}
+            <div style="aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #000; border: 1px solid var(--border);">
+                <a href="{% url 'image_gallery' %}">
+                    <img src="{{ img.image_file.url }}" alt="Snapshot" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                </a>
+            </div>
+            {% empty %}
+            <p class="text-muted" style="grid-column: span 2; font-size: 0.875rem;">No images yet.</p>
+            {% endfor %}
+        </div>
+        <div style="margin-top: 1.5rem;">
+            <a href="{% url 'image_gallery' %}" class="nav-link" style="justify-content: center; font-size: 0.875rem;">View Gallery →</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

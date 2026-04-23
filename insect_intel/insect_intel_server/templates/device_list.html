@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Devices | Insect Intel{% endblock %}
+
+{% block extra_css %}
+@keyframes pulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <h1 class="page-title">Devices</h1>
+    <p class="page-subtitle">Inventory of all unique units currently connected to the server.</p>
+</div>
+
+<div class="table-container animate-in" style="animation-delay: 0.1s;">
+    <table>
+        <thead>
+            <tr>
+                <th>Device ID</th>
+                <th>Last Seen</th>
+                <th>SOH</th>
+                <th>Battery</th>
+                <th>Voltage</th>
+                <th>Temp</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for device in devices %}
+            <tr {% if device.lowbattery %}style="background: rgba(248, 81, 73, 0.05); border-left: 4px solid var(--danger);"{% endif %}>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="mono" style="font-weight: 600;">{{ device.device_id }}</span>
+                        {% if device.lowbattery %}
+                        <span class="badge badge-danger" style="animation: pulse 2s infinite; font-size: 0.7rem;">CRITICAL</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td class="text-muted">{{ device.received_at|date:"Y-m-d H:i" }}</td>
+                <td>
+                    <span class="badge badge-primary">
+                        {{ device.soh|default:"0" }}%
+                    </span>
+                </td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="width: 40px; height: 8px; background: #222; border-radius: 4px; overflow: hidden;">
+                            <div style="width: {{ device.soc|default:0 }}%; height: 100%; background: {% if device.soc > 20 %}var(--success){% else %}var(--danger){% endif %};"></div>
+                        </div>
+                        <span class="mono">{{ device.soc|default:0 }}%</span>
+                    </div>
+                </td>
+                <td class="mono text-muted">{{ device.vbat_v|default:"0.00" }} V</td>
+                <td class="mono text-muted">{{ device.btmp_c|default:"0.0" }} °C</td>
+                <td style="text-align: right;">
+                    <a href="{% url 'device_detail' device.device_id %}" class="nav-link" style="display: inline-flex; width: auto; font-size: 0.875rem;">Manage Unit →</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-muted" style="text-align: center; padding: 3rem;">No devices found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

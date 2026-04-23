@@ -1,143 +1,72 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Upload Detail #{{ upload.id }}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-        
-        .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
-            color: #4CAF50;
-            text-decoration: none;
-        }
-        
-        .back-link:hover {
-            text-decoration: underline;
-        }
-        
-        .info-grid {
-            display: grid;
-            grid-template-columns: 150px 1fr;
-            gap: 12px;
-            background: #f9f9f9;
-            padding: 20px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-        }
-        
-        .info-label {
-            font-weight: 600;
-            color: #555;
-        }
-        
-        .info-value {
-            color: #333;
-        }
-        
-        .content-section {
-            margin-top: 30px;
-        }
-        
-        .content-section h2 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 18px;
-        }
-        
-        .content-box {
-            background: #f5f5f5;
-            padding: 20px;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        
-        .error {
-            color: #d32f2f;
-            background: #ffebee;
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-        }
-        
-        .download-btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            margin-top: 10px;
-        }
-        
-        .download-btn:hover {
-            background: #45a049;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <a href="{% url 'view_uploads' %}" class="back-link">← Back to all uploads</a>
-        
-        <h1>Upload Detail #{{ upload.id }}</h1>
-        
-        <div class="info-grid">
-            <div class="info-label">Upload ID:</div>
-            <div class="info-value">{{ upload.id }}</div>
-            
-            <div class="info-label">Device ID:</div>
-            <div class="info-value">{{ upload.device_id }}</div>
-            
-            <div class="info-label">Uploaded At:</div>
-            <div class="info-value">{{ upload.uploaded_at|date:"Y-m-d H:i:s" }}</div>
-            
-            <div class="info-label">File Path:</div>
-            <div class="info-value">{{ upload.raw_file.name }}</div>
-            
-            <div class="info-label">File Size:</div>
-            <div class="info-value">{{ file_size|filesizeformat }} ({{ file_size }} bytes)</div>
+{% extends 'base.html' %}
+
+{% block title %}Frame #{{ upload.id }} | Insect Intel{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <a href="{% url 'view_uploads' %}" class="nav-link" style="width: auto; margin-bottom: 1rem;">&larr; Back to Raw Frames</a>
+    <h1 class="page-title">Raw Frame #{{ upload.id }}</h1>
+    <p class="page-subtitle">Device: <span class="mono">{{ upload.device_id }}</span> | Uploaded: {{ upload.uploaded_at|date:"Y-m-d H:i:s" }}</p>
+</div>
+
+{% if linked_diagnostic %}
+<div class="card animate-in" style="border-left: 4px solid var(--primary); margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h3 style="margin-bottom: 0.25rem;">🔗 Linked Diagnostic</h3>
+            <p class="text-muted" style="font-size: 0.9rem;">Auto-associated telemetry found for this frame.</p>
         </div>
-        
-        <a href="{% url 'download_upload' upload.id %}" class="download-btn">⬇️ Download Raw File</a>
-        
-        {% if error %}
-        <div class="error">⚠️ {{ error }}</div>
-        {% endif %}
-        
-        <div class="content-section">
-            <h2>📄 Raw Content:</h2>
-            <div class="content-box">{{ content }}</div>
+        <a href="{% url 'diagnostic_detail' linked_diagnostic.id %}" class="badge badge-primary" style="padding: 0.5rem 1rem;">View Full Telemetry</a>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem;">
+        <div>
+            <small class="text-muted">Battery</small>
+            <div class="mono">{{ linked_diagnostic.soc }}%</div>
+        </div>
+        <div>
+            <small class="text-muted">State</small>
+            <div class="mono">{{ linked_diagnostic.state }}</div>
+        </div>
+        <div>
+            <small class="text-muted">Temp</small>
+            <div class="mono">{{ linked_diagnostic.btmp_c|default:"0.0" }} °C</div>
         </div>
     </div>
-</body>
-</html>
+</div>
+{% endif %}
+
+<div class="dashboard-grid animate-in" style="grid-template-columns: 2fr 1fr; animation-delay: 0.1s;">
+    <div class="card">
+        <div class="card-title">File Content Preview</div>
+        <div style="background: #000; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); max-height: 500px; overflow-y: auto;">
+            {% if error %}
+            <div class="badge badge-danger" style="margin-bottom: 1rem;">{{ error }}</div>
+            {% endif %}
+            <pre class="mono" style="font-size: 0.85rem; color: #88ee88; white-space: pre-wrap; word-break: break-all;">{{ content|default:"Empty or non-text file." }}</pre>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Metadata</div>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div>
+                <small class="text-muted">Database ID</small>
+                <div class="mono">#{{ upload.id }}</div>
+            </div>
+            <div>
+                <small class="text-muted">File Size</small>
+                <div class="mono">{{ file_size }} bytes</div>
+            </div>
+            <div>
+                <small class="text-muted">Storage Path</small>
+                <div class="mono" style="font-size: 0.75rem; word-break: break-all;">{{ upload.raw_file.name }}</div>
+            </div>
+            <hr style="border: 0; border-top: 1px solid var(--border); margin: 0.5rem 0;">
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <a href="{% url 'download_upload' upload.id %}" class="nav-link" style="background: var(--bg-card-hover); text-align: center; justify-content: center;">Download Raw File</a>
+                <a href="{% url 'delete_upload' upload.id %}" class="nav-link" style="color: var(--danger); text-align: center; justify-content: center;" onclick="return confirm('Permanently delete this upload?')">Delete Record</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

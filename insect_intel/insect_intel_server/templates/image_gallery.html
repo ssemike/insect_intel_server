@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Image Gallery | Insect Intel{% endblock %}
+
+{% block extra_css %}
+.gallery-grid {
+display: grid;
+grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+gap: 1.5rem;
+}
+.image-card {
+background: var(--bg-card);
+border-radius: 12px;
+border: 1px solid var(--border);
+overflow: hidden;
+transition: transform 0.2s ease;
+}
+.image-card:hover {
+transform: scale(1.02);
+}
+.image-preview {
+width: 100%;
+aspect-ratio: 4/3;
+background: #000;
+overflow: hidden;
+}
+.image-preview img {
+width: 100%;
+height: 100%;
+object-fit: cover;
+}
+.image-info {
+padding: 1rem;
+}
+.image-meta {
+font-size: 0.75rem;
+color: var(--text-muted);
+margin-top: 0.5rem;
+display: flex;
+justify-content: space-between;
+}
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <h1 class="page-title">Image Gallery</h1>
+    <p class="page-subtitle">Visual snapshots from all deployed units.</p>
+</div>
+
+<div class="gallery-grid animate-in" style="animation-delay: 0.1s;">
+    {% for img in page_obj %}
+    <div class="image-card">
+        <div class="image-preview">
+            <img src="{{ img.image_file.url }}" alt="Device Capture" class="zoomable"
+                onclick="openViewer('{{ img.image_file.url }}', '{{ img.device_id }}', 'Captured: {{ img.device_timestamp|date:'Y-m-d H:i:s' }} | Received: {{ img.uploaded_at|date:'Y-m-d H:i:s' }}')">
+        </div>
+        <div class="image-info">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="mono" style="font-weight: 600;">{{ img.device_id }}</span>
+                {% if img.linked_diagnostic %}
+                <a href="{% url 'diagnostic_detail' img.linked_diagnostic.id %}" class="badge badge-primary">Linked
+                    Telemetry</a>
+                {% endif %}
+            </div>
+            <div class="image-meta" style="flex-direction: column; gap: 0.25rem;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Captured:</span>
+                    <span class="mono">{{ img.device_timestamp|date:"Y-m-d H:i"|default:"Unknown" }}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Transmitted:</span>
+                    <span class="mono">{{ img.uploaded_at|date:"Y-m-d H:i" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div style="grid-column: 1/-1; text-align: center; padding: 5rem;" class="text-muted">
+        No images found in the system.
+    </div>
+    {% endfor %}
+</div>
+
+{% if page_obj.has_other_pages %}
+<div style="display: flex; gap: 1rem; justify-content: center; margin-top: 3rem;" class="animate-in">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}" class="nav-link" style="width: auto;">&larr; Previous</a>
+    {% endif %}
+    <span style="padding: 0.75rem;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="nav-link" style="width: auto;">Next &rarr;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Configure Device | Insect Intel{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <a href="{% url 'device_detail' device_id %}" class="nav-link" style="width: auto; margin-bottom: 1rem;">&larr; Back to Device</a>
+    <h1 class="page-title">Configure Unit: <span class="mono">{{ device_id }}</span></h1>
+    <p class="page-subtitle">Queue a configuration command. The device will receive these parameters next time it wakes up and sends telemetry.</p>
+</div>
+
+<div class="animate-in" style="animation-delay: 0.1s; display: grid; grid-template-columns: 300px 1fr; gap: 2rem; align-items: start;">
+    <!-- Current Status Sidebar -->
+    <div class="card" style="padding: 1.5rem;">
+        <h3 class="card-title" style="margin-bottom: 1.5rem; font-size: 1rem;">Current Unit Status</h3>
+        <div style="font-size: 0.85rem; display: flex; flex-direction: column; gap: 1rem;">
+            <div>
+                <div class="text-muted" style="margin-bottom: 0.25rem;">Wake Interval</div>
+                <div class="mono">{{ current.cfg_wake_interval|default:"-" }} min</div>
+            </div>
+            <div style="height: 1px; background: var(--border);"></div>
+            <div>
+                <div class="text-muted" style="margin-bottom: 0.25rem;">VREG / ICHG</div>
+                <div class="mono">{{ current.cfg_vreg|default:"-" }} mV / {{ current.cfg_ichg|default:"-" }} mA</div>
+            </div>
+            <div>
+                <div class="text-muted" style="margin-bottom: 0.25rem;">IINDPM / VINDPM</div>
+                <div class="mono">{{ current.cfg_iindpm|default:"-" }} mA / {{ current.cfg_vindpm|default:"-" }} mV</div>
+            </div>
+            <div>
+                <div class="text-muted" style="margin-bottom: 0.25rem;">VSYSMIN</div>
+                <div class="mono">{{ current.cfg_vsysmin|default:"-" }} mV</div>
+            </div>
+            <div>
+                <div class="text-muted" style="margin-bottom: 0.25rem;">IPRECHG / ITERM</div>
+                <div class="mono">{{ current.cfg_iprechg|default:"-" }} mA / {{ current.cfg_iterm|default:"-" }} mA</div>
+            </div>
+            <div style="height: 1px; background: var(--border); margin-top: 0.5rem;"></div>
+            <div class="text-muted" style="font-size: 0.75rem;">
+                Last reported: {{ current.received_at|date:"Y-m-d H:i" }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Form -->
+    <form method="POST" class="card" style="margin: 0;">
+        {% csrf_token %}
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <!-- System Settings -->
+            <div>
+                <h3 class="card-title" style="margin-bottom: 1.5rem; color: var(--primary);">System Timing</h3>
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Wake Interval (minutes)</label>
+                    <input type="number" name="wake_interval_minutes" value="{{ config.wake_interval_minutes|default:10 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text;">
+                    <small class="text-muted">How often the device wakes up to report telemetry.</small>
+                </div>
+            </div>
+
+            <!-- Charger Settings -->
+            <div>
+                <h3 class="card-title" style="margin-bottom: 1.5rem; color: var(--primary);">Charger (BQ25628E)</h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.8rem;">VREG (mV)</label>
+                        <input type="number" name="vreg_mV" value="{{ config.vreg_mV|default:4200 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text; padding: 0.5rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.8rem;">ICHG (mA)</label>
+                        <input type="number" name="ichg_mA" value="{{ config.ichg_mA|default:500 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text; padding: 0.5rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.8rem;">IINDPM (mA)</label>
+                        <input type="number" name="iindpm_mA" value="{{ config.iindpm_mA|default:1500 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text; padding: 0.5rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.8rem;">VINDPM (mV)</label>
+                        <input type="number" name="vindpm_mV" value="{{ config.vindpm_mV|default:4500 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text; padding: 0.5rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.8rem;">VSYSMIN (mV)</label>
+                        <input type="number" name="vsysmin_mV" value="{{ config.vsysmin_mV|default:3500 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text; padding: 0.5rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.8rem;">IPRECHG (mA)</label>
+                        <input type="number" name="iprechg_mA" value="{{ config.iprechg_mA|default:50 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text; padding: 0.5rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.25rem; font-size: 0.8rem;">ITERM (mA)</label>
+                        <input type="number" name="iterm_mA" value="{{ config.iterm_mA|default:50 }}" class="nav-link" style="width: 100%; background: #111; border-color: var(--border); cursor: text; padding: 0.5rem;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 1rem;">
+            <a href="{% url 'device_detail' device_id %}" class="nav-link" style="width: auto; background: transparent;">Cancel</a>
+            <button type="submit" class="nav-link" style="width: auto; background: var(--primary); color: #000; font-weight: 600; border: none;">Save Configuration Command</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

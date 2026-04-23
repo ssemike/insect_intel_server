@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Diagnostics | Insect Intel{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <h1 class="page-title">Diagnostic Logs</h1>
+    <p class="page-subtitle">Full historical telemetry data from all units.</p>
+</div>
+
+<div class="table-container animate-in" style="animation-delay: 0.1s;">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Device</th>
+                <th>Time</th>
+                <th>SOC</th>
+                <th>SOH</th>
+                <th>Adapter</th>
+                <th>Vbat</th>
+                <th>Btmp</th>
+                <th>Source</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for diag in page_obj %}
+            <tr>
+                <td class="mono text-muted">#{{ diag.id }}</td>
+                <td class="mono" style="font-weight: 600;">{{ diag.device_id }}</td>
+                <td class="text-muted">{{ diag.received_at|date:"Y-m-d H:i:s" }}</td>
+                <td>
+                    <span class="badge {% if diag.soc > 20 %}badge-success{% else %}badge-danger{% endif %}">
+                        {{ diag.soc|default:"-" }}%
+                    </span>
+                </td>
+                <td><span class="badge badge-primary">{{ diag.soh|default:"0" }}%</span></td>
+                <td>
+                    {% if diag.adapter %}
+                    <span class="badge badge-success">DC-IN</span>
+                    {% else %}
+                    <span class="badge badge-warning">BATT</span>
+                    {% endif %}
+                </td>
+                <td class="mono text-muted">{{ diag.vbat_v|default:"-" }} V</td>
+                <td class="mono text-muted">{{ diag.btmp_c|default:"0.0" }} °C</td>
+                <td>
+                    {% if diag.connection_type == 'LTE' %}
+                    <span class="badge badge-primary">LTE</span>
+                    {% elif diag.connection_type == 'WiFi' %}
+                    <span class="badge badge-success">WiFi</span>
+                    {% else %}
+                    <span class="text-muted small">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'diagnostic_detail' diag.id %}" class="nav-link" style="padding: 0.25rem; font-size: 0.75rem;">Details</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;" class="animate-in">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}" class="nav-link" style="width: auto;">&larr; Previous</a>
+    {% endif %}
+    <span style="padding: 0.75rem;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="nav-link" style="width: auto;">Next &rarr;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,309 @@
+{% extends 'base.html' %}
+
+{% block title %}Device {{ device_id }} | Insect Intel{% endblock %}
+
+{% block extra_css %}
+.chart-container {
+background-color: var(--bg-card);
+border: 1px solid var(--border);
+border-radius: 12px;
+padding: 1.5rem;
+margin-bottom: 2rem;
+height: 400px;
+}
+.gallery-strip {
+display: flex;
+gap: 1rem;
+overflow-x: auto;
+padding-bottom: 1rem;
+margin-bottom: 2rem;
+}
+.gallery-item {
+flex: 0 0 200px;
+aspect-ratio: 4/3;
+background: #000;
+border-radius: 8px;
+border: 1px solid var(--border);
+overflow: hidden;
+position: relative;
+}
+.gallery-item img {
+width: 100%;
+height: 100%;
+object-fit: cover;
+}
+.gallery-timestamp {
+position: absolute;
+bottom: 0;
+left: 0;
+width: 100%;
+background: rgba(0,0,0,0.6);
+padding: 0.25rem 0.5rem;
+font-size: 0.65rem;
+color: #fff;
+backdrop-filter: blur(4px);
+}
+.stat-card {
+display: flex;
+flex-direction: column;
+gap: 0.5rem;
+}
+.signal-meter {
+height: 4px;
+background: var(--border);
+border-radius: 2px;
+width: 100%;
+margin-top: 0.5rem;
+}
+.signal-fill {
+height: 100%;
+border-radius: 2px;
+transition: width 0.3s ease;
+}
+.conn-badge {
+padding: 0.25rem 0.75rem;
+border-radius: 20px;
+font-size: 0.75rem;
+font-weight: 600;
+text-transform: uppercase;
+}
+.conn-lte { background: rgba(88, 166, 255, 0.15); color: #58a6ff; border: 1px solid rgba(88, 166, 255, 0.3); }
+.conn-wifi { background: rgba(63, 185, 80, 0.15); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.3); }
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+            <h1 class="page-title mono">{{ device_id }}</h1>
+            <p class="page-subtitle">Hardware ID: {{ device_id }} | Last seen: {{ latest.received_at|date:"Y-m-d H:i:s"
+                }}</p>
+        </div>
+        <div style="display: flex; gap: 1rem;">
+            <div class="card" style="padding: 0.75rem 1.5rem; text-align: center;">
+                <div class="card-title" style="margin-bottom: 0.25rem;">Connection</div>
+                <div class="stat-value" style="font-size: 1.2rem;">
+                    {% if latest.connection_type == 'LTE' %}
+                    <span class="conn-badge conn-lte">LTE</span>
+                    {% elif latest.connection_type == 'WiFi' %}
+                    <span class="conn-badge conn-wifi">WiFi</span>
+                    {% else %}
+                    <span class="badge">{{ latest.connection_type }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card" style="padding: 0.75rem 1.5rem; text-align: center;">
+                <div class="card-title" style="margin-bottom: 0.25rem;">Battery</div>
+                <div class="stat-value" style="font-size: 1.2rem;">{{ latest.soc|default:0 }}%</div>
+            </div>
+            <div class="card" style="padding: 0.75rem 1.5rem; text-align: center;">
+                <div class="card-title" style="margin-bottom: 0.25rem;">Temp</div>
+                <div class="stat-value" style="font-size: 1.2rem;">{{ latest.btmp_c|default:"0.0" }}°C</div>
+            </div>
+            <a href="{% url 'device_configure' device_id %}" class="nav-link"
+                style="width: auto; height: fit-content; align-self: center; background: var(--primary); color: #000; font-weight: 600; border: none;">
+                Configure
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="animate-in"
+    style="animation-delay: 0.1s; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    <div class="card">
+        <div class="card-title">Connectivity & Signal</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <span class="text-muted">Network</span>
+            <span class="mono">{{ latest.net|default:"-" }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span class="text-muted">Signal Strength</span>
+            <span
+                class="mono {% if latest.signal_quality == 'Poor' %}text-danger{% elif latest.signal_quality == 'Fair' %}text-warning{% else %}text-success{% endif %}">
+                {{ latest.lte_sig|default:"0" }} dBm ({{ latest.signal_quality }})
+            </span>
+        </div>
+        <div class="signal-meter">
+            {% with sig=latest.lte_sig|default:-120 %}
+            {% if sig > -70 %}
+            <div class="signal-fill" style="width: 100%; background: #3fb950;"></div>
+            {% elif sig > -85 %}
+            <div class="signal-fill" style="width: 75%; background: #3fb950;"></div>
+            {% elif sig > -100 %}
+            <div class="signal-fill" style="width: 50%; background: #d29922;"></div>
+            {% else %}
+            <div class="signal-fill" style="width: 25%; background: #f85149;"></div>
+            {% endif %}
+            {% endwith %}
+        </div>
+        <div style="margin-top: 1.5rem; font-size: 0.85rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span class="text-muted">SIM Status</span>
+                <span>{% if latest.sim_pres %}Present{% else %}Missing{% endif %}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span class="text-muted">SIM Number</span>
+                <span class="mono">{{ latest.sim_num|default:"-" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">System Status</div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+            <span class="text-muted">SD Card</span>
+            <span>{% if latest.sd_pres %}{{ latest.sd_free }} MB Free{% else %}Missing{% endif %}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+            <span class="text-muted">Camera Resolution</span>
+            <span class="mono">{{ latest.cam_res|default:"-" }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+            <span class="text-muted">Last Comm</span>
+            <span class="mono text-muted">{{ latest.last_comm_time|date:"Y-m-d H:i:s"|default:"-" }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+            <span class="text-muted">Sync Time</span>
+            <span class="mono">{{ latest.device_timestamp|date:"H:i:s"|default:"-" }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="animate-in" style="animation-delay: 0.1s;">
+    <h3 style="margin-bottom: 1rem; font-size: 1.25rem;">Recent Snapshots</h3>
+    <div class="gallery-strip">
+        {% for img in images %}
+        <div class="gallery-item zoomable"
+            onclick="openViewer('{{ img.image_file.url }}', '{{ device_id }}', 'Captured: {{ img.device_timestamp|date:'Y-m-d H:i:s' }}')">
+            <img src="{{ img.image_file.url }}" alt="Capture">
+            <div class="gallery-timestamp">
+                {{ img.device_timestamp|date:"Y-m-d H:i"|default:img.uploaded_at|date:"H:i" }}
+            </div>
+            <a href="{% url 'delete_image_cascade' img.id %}"
+                onclick="return confirm('Delete this image and its linked diagnostic data?')"
+                style="position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(248, 81, 73, 0.8); color: white; border: none; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.8rem; z-index: 10;">
+                &times;
+            </a>
+        </div>
+        {% empty %}
+        <p class="text-muted">No images available for this device.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="chart-container animate-in" style="animation-delay: 0.2s;">
+    <div class="card-title">Battery & Voltage Telemetry History</div>
+    <canvas id="deviceChart"></canvas>
+</div>
+
+<div class="card animate-in" style="animation-delay: 0.3s;">
+    <div class="card-title">Recent Logs</div>
+    <div class="table-container" style="border: none; margin-bottom: 0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>State</th>
+                    <th>Soc</th>
+                    <th>Voltage</th>
+                    <th>Cycles</th>
+                    <th>Adapter</th>
+                    <th style="text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for diag in diagnostics %}
+                <tr onclick="window.location='{% url 'diagnostic_detail' diag.id %}'" style="cursor: pointer;">
+                    <td class="text-muted">{{ diag.received_at|date:"Y-m-d H:i:s" }}</td>
+                    <td><span class="badge badge-primary">{{ diag.state }}</span></td>
+                    <td class="mono">{{ diag.soc }}%</td>
+                    <td class="mono text-muted">{{ diag.vbat_v|default:"-" }} V</td>
+                    <td class="mono">{{ diag.cycles|default:"-" }}</td>
+                    <td>
+                        {% if diag.adapter %}
+                        <span class="badge badge-success">DC-IN</span>
+                        {% else %}
+                        <span class="badge badge-warning">BATT</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="{% url 'delete_diagnostic_cascade' diag.id %}"
+                            onclick="event.stopPropagation(); return confirm('Delete this diagnostic and all associated media?')"
+                            style="color: var(--danger); text-decoration: none; font-size: 0.8rem;">
+                            Delete
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const chartData = {{ chart_data_json| safe }};
+    const labels = chartData.map(d => new Date(d.received_at).toLocaleTimeString());
+    const socData = chartData.map(d => d.soc);
+    const vbatData = chartData.map(d => d.vbat / 100); // Scaled for chart visibility
+
+    const ctx = document.getElementById('deviceChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Battery SOC (%)',
+                    data: socData,
+                    borderColor: '#3fb950',
+                    backgroundColor: 'rgba(63, 185, 80, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Voltage (cV)',
+                    data: vbatData,
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#8b949e' },
+                    min: 0,
+                    max: 100
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    grid: { drawOnChartArea: false },
+                    ticks: { color: '#8b949e' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#8b949e' }
+                }
+            },
+            plugins: {
+                legend: {
+                    labels: { color: '#c9d1d9', font: { family: 'Inter' } }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

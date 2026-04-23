@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Insect Intel Dashboard{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-deep: #0a0e14;
+            --bg-card: #161b22;
+            --bg-card-hover: #1c2128;
+            --border: #30363d;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --primary: #58a6ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --accent-glow: rgba(88, 166, 255, 0.15);
+            --sidebar-width: 260px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            z-index: 100;
+        }
+
+        .sidebar-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 3rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .nav-links {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-muted);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 500;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text-main);
+            background-color: var(--bg-card-hover);
+        }
+
+        .nav-link.active {
+            color: var(--primary);
+            background-color: var(--accent-glow);
+            border-left: 3px solid var(--primary);
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 2.5rem;
+            width: calc(100% - var(--sidebar-width));
+        }
+
+        .page-header {
+            margin-bottom: 2.5rem;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        /* Layout Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Modern Cards */
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        /* Tables */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background-color: rgba(255,255,255,0.02);
+            padding: 1rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.875rem;
+            color: var(--text-main);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: rgba(255,255,255,0.02);
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success { background-color: rgba(63, 185, 80, 0.15); color: var(--success); }
+        .badge-warning { background-color: rgba(210, 153, 34, 0.15); color: var(--warning); }
+        .badge-danger { background-color: rgba(248, 81, 73, 0.15); color: var(--danger); }
+        .badge-primary { background-color: rgba(88, 166, 255, 0.15); color: var(--primary); }
+
+        /* Typography Helper */
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        /* Image Viewer Modal */
+        .viewer-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .viewer-modal.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .viewer-content {
+            max-width: 90%;
+            max-height: 85vh;
+            position: relative;
+            animation: viewerPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes viewerPop {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .viewer-content img {
+            max-width: 100%;
+            max-height: 85vh;
+            border-radius: 8px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            border: 1px solid var(--border);
+        }
+
+        .viewer-info {
+            position: absolute;
+            bottom: -50px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: var(--text-main);
+        }
+
+        .viewer-close {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .viewer-close:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .zoomable { cursor: pointer; }
+
+        {% block extra_css %}{% endblock %}
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+            Insect Intel
+        </div>
+        <ul class="nav-links">
+            <li><a href="{% url 'dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a></li>
+            <li><a href="{% url 'device_list' %}" class="nav-link {% if request.resolver_match.url_name == 'device_list' %}active{% endif %}">Devices</a></li>
+            <li><a href="{% url 'diagnostic_list' %}" class="nav-link {% if request.resolver_match.url_name == 'diagnostic_list' %}active{% endif %}">Diagnostics</a></li>
+            <li><a href="{% url 'image_gallery' %}" class="nav-link {% if request.resolver_match.url_name == 'image_gallery' %}active{% endif %}">Gallery</a></li>
+            <li><a href="{% url 'view_uploads' %}" class="nav-link {% if request.resolver_match.url_name == 'view_uploads' %}active{% endif %}">Raw Frames</a></li>
+            <li style="margin-top: 2rem;"><a href="{% url 'admin:index' %}" class="nav-link">System Admin</a></li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Global Image Viewer Modal -->
+    <div id="imageViewer" class="viewer-modal" onclick="closeViewer()">
+        <button class="viewer-close" onclick="closeViewer()">Close ESC</button>
+        <div class="viewer-content" onclick="event.stopPropagation()">
+            <img id="viewerImg" src="" alt="Full size view">
+            <div class="viewer-info">
+                <div id="viewerTitle" style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.2rem;"></div>
+                <div id="viewerSubtitle" style="font-size: 0.85rem; color: var(--text-muted);" class="mono"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openViewer(src, title, subtitle) {
+            const modal = document.getElementById('imageViewer');
+            const img = document.getElementById('viewerImg');
+            const titleEl = document.getElementById('viewerTitle');
+            const subEl = document.getElementById('viewerSubtitle');
+
+            img.src = src;
+            titleEl.textContent = title || '';
+            subEl.textContent = subtitle || '';
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeViewer() {
+            const modal = document.getElementById('imageViewer');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close on ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeViewer();
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

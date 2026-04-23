@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block title %}Diagnostic #{{ diag.id }} | Insect Intel{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+    <a href="{% url 'diagnostic_list' %}" class="nav-link" style="width: auto; margin-bottom: 1rem;">&larr; Back to List</a>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+            <h1 class="page-title">Diagnostic Record #{{ diag.id }}</h1>
+            <p class="page-subtitle">Device: <span class="mono">{{ diag.device_id }}</span> | Received at: {{ diag.received_at|date:"Y-m-d H:i:s" }}</p>
+        </div>
+        <a href="{% url 'delete_diagnostic_cascade' diag.id %}" 
+           onclick="return confirm('Are you sure? This will delete the diagnostic and all associated images/files.')"
+           class="nav-link" style="width: auto; background: var(--danger); color: white; border: none; font-size: 0.875rem;">
+            Delete Diagnostic & Media
+        </a>
+    </div>
+</div>
+
+
+
+
+<div class="dashboard-grid animate-in" style="animation-delay: 0.1s;">
+    <!-- Battery Card -->
+    <div class="card">
+        <div class="card-title">Battery State</div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between;">
+                <span>SOC:</span>
+                <span class="mono">{{ diag.soc|default:"-" }}%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>SOH:</span>
+                <span class="mono">{{ diag.soh|default:"-" }}%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Cycles:</span>
+                <span class="mono">{{ diag.cycles|default:"-" }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Power Card -->
+    <div class="card">
+        <div class="card-title">Voltages & Current</div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between;">
+                <span>Vbat:</span>
+                <span class="mono">{{ diag.vbat_v|default:"-" }} V</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Vchg:</span>
+                <span class="mono">{{ diag.vchg_v|default:"-" }} V</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Vsys:</span>
+                <span class="mono">{{ diag.vsys_v|default:"-" }} V</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Pavg:</span>
+                <span class="mono">{{ diag.avgpwr|default:"-" }} mW</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Adapter:</span>
+                <span class="badge {% if diag.adapter %}badge-success{% else %}badge-warning{% endif %}">
+                    {% if diag.adapter %}CONNECTED{% else %}DISCONNECTED{% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Temperature Card -->
+    <div class="card">
+        <div class="card-title">Temperatures</div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between;">
+                <span>Battery (btmp):</span>
+                <span class="mono">{{ diag.btmp_c|default:"-" }} °C</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Charger (ctmp):</span>
+                <span class="mono">{{ diag.ctmp_c|default:"-" }} °C</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Gage (gtmp):</span>
+                <span class="mono">{{ diag.gtmp_c|default:"-" }} °C</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connectivity Card -->
+    <div class="card">
+        <div class="card-title">Connectivity</div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Source:</span>
+                {% if diag.connection_type == 'LTE' %}
+                    <span class="badge badge-primary">LTE</span>
+                {% elif diag.connection_type == 'WiFi' %}
+                    <span class="badge badge-success">WiFi</span>
+                {% else %}
+                    <span class="badge badge-secondary">Unknown</span>
+                {% endif %}
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Signal:</span>
+                <span class="mono">{{ diag.lte_sig|default:"-" }} dBm</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Provider:</span>
+                <span class="mono">{{ diag.net|default:"-" }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="dashboard-grid animate-in" style="grid-template-columns: 2fr 1fr; animation-delay: 0.2s;">
+    <div class="card">
+        <div class="card-title">System Flags (Hex)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+                <small class="text-muted">Safety Status</small>
+                <div class="mono" style="font-size: 1.1rem; padding: 0.5rem; background: #222; border-radius: 4px; border: 1px solid var(--border);">{{ diag.safety|default:"0x00000000" }}</div>
+            </div>
+            <div>
+                <small class="text-muted">Charger Flags</small>
+                <div class="mono" style="font-size: 1.1rem; padding: 0.5rem; background: #222; border-radius: 4px; border: 1px solid var(--border);">{{ diag.chgflags|default:"0x00000000" }}</div>
+            </div>
+            <div>
+                <small class="text-muted">Fault Flags</small>
+                <div class="mono" style="font-size: 1.1rem; padding: 0.5rem; background: #222; border-radius: 4px; border: 1px solid var(--border);">{{ diag.faultflags|default:"0x00000000" }}</div>
+            </div>
+            <div>
+                <small class="text-muted">Charger Status</small>
+                <div class="mono" style="font-size: 1.1rem; padding: 0.5rem; background: #222; border-radius: 4px; border: 1px solid var(--border);">{{ diag.chgstat|default:"0x00000000" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Associated Media</div>
+        {% with images=diag.images.all %}
+        {% if images %}
+            {% for img in images %}
+            <div class="zoomable" onclick="openViewer('{{ img.image_file.url }}', '{{ diag.device_id }}', 'Captured: {{ img.device_timestamp|date:'Y-m-d H:i:s' }}')" style="aspect-ratio: 4/3; margin-top: 1rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); position: relative;">
+                <img src="{{ img.image_file.url }}" alt="Associated Capture" style="width: 100%; height: 100%; object-fit: cover;">
+                <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.65rem; padding: 0.25rem 0.5rem;" class="mono">
+                    Device: {{ img.device_timestamp|date:"Y-m-d H:i"|default:"Unknown" }}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted">No images associated with this specific diagnostic record.</p>
+        {% endif %}
+        {% endwith %}
+        
+        {% with frames=diag.raw_frames.all %}
+        {% if frames %}
+            <div style="margin-top: 1.5rem;">
+                <small class="text-muted">Raw Frames ({{ frames.count }})</small>
+                {% for f in frames %}
+                <a href="{% url 'upload_detail' f.id %}" class="nav-link" style="font-size: 0.8rem; margin-top: 0.5rem;">Frame #{{ f.id }}</a>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+    </div>
+</div>
+
+<!-- Decoded Alerts Section -->
+<div class="animate-in" style="animation-delay: 0.3s; margin-top: 2rem;">
+    <h3 class="card-title">Hardware Alerts & Decoded Status</h3>
+    {% with alerts=diag.get_decoded_alerts %}
+    {% if alerts %}
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            {% for alert in alerts %}
+            <div class="card" style="padding: 0.75rem 1rem; border-left: 4px solid {% if alert.type == 'FAULT' or alert.type == 'CRITICAL' %}var(--danger){% else %}var(--primary){% endif %}; background: rgba(255,255,255,0.02);">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <span class="badge {% if alert.type == 'FAULT' or alert.type == 'CRITICAL' %}badge-danger{% else %}badge-primary{% endif %}" style="font-size: 0.7rem;">{{ alert.type }}</span>
+                    <span style="font-weight: 500; font-size: 0.95rem;">{{ alert.msg }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-muted" style="font-size: 0.85rem; background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px dashed var(--border);">
+            No active hardware faults or alerts detected for this record.
+        </div>
+    {% endif %}
+    {% endwith %}
+</div>
+{% endblock %}
