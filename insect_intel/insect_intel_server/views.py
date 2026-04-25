@@ -12,11 +12,16 @@ from rest_framework.permissions import AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser, FileUploadParser
 import os
 
-from .models import RawFrameUpload, DeviceDiagnostic, DeviceImage, DeviceCommand
+from .models import RawFrameUpload, DeviceDiagnostic, DeviceImage, DeviceCommand, UploadLog, Device
 from django.utils import timezone
 from datetime import datetime, timedelta
+from django.db.models.functions import TruncDate
+from django.db.models import Count
 import json
 import pytz
+import csv
+import io
+import zipfile
 
 
 
@@ -79,6 +84,15 @@ def decode_wifi_filename(filename):
     """
     import re
     return re.sub(r'__(\w+)__$', r'.\1', filename)
+
+def register_device_activity(device_id):
+    """Registers or updates the last_seen timestamp for a device."""
+    if not device_id or device_id == "UNKNOWN_DEVICE":
+        return
+    device, created = Device.objects.get_or_create(device_id=device_id)
+    if not created:
+        device.last_seen = timezone.now()
+        device.save(update_fields=['last_seen'])
 
 # -------------------------------------------------
 # Utility: Time API
@@ -143,18 +157,7 @@ class SimpleUploadView(APIView):
         - file        (required)
         - device_id   (optional)
         """
-
         uploaded_file = request.FILES.get("file")
-
-        if not uploaded_file:
-            return Response(
-                {
-                    "error": "Missing multipart field 'file'.",
-                    "received_files": list(request.FILES.keys())
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         device_id = (
             request.POST.get("device_id")
             or request.headers.get("X-Device-ID")
@@ -162,27 +165,64 @@ class SimpleUploadView(APIView):
             or "UNKNOWN_DEVICE"
         )
 
-        device_timestamp = parse_device_timestamp(uploaded_file.name)
+        try:
+            if not uploaded_file:
+                error_msg = "Missing multipart field 'file'."
+                UploadLog.objects.create(
+                    device_id=device_id,
+                    upload_type='RAW_FRAME',
+                    success=False,
+                    error_message=error_msg,
+                    status_code=400
+                )
+                return Response(
+                    {
+                        "error": error_msg,
+                        "received_files": list(request.FILES.keys())
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        upload = RawFrameUpload.objects.create(
-            raw_file=uploaded_file,
-            device_id=device_id,
-            device_timestamp=device_timestamp
-        )
+            device_timestamp = parse_device_timestamp(uploaded_file.name)
 
-        # NEW: auto-linking logic
-        link_to_diagnostic(upload)
+            upload = RawFrameUpload.objects.create(
+                raw_file=uploaded_file,
+                device_id=device_id,
+                device_timestamp=device_timestamp
+            )
 
-        return Response(
-            {
-                "message": "Raw frame received successfully",
-                "upload_id": upload.id,
-                "device_id": device_id,
-                "filename": uploaded_file.name,
-                "size_bytes": uploaded_file.size,
-            },
-            status=status.HTTP_201_CREATED
-        )
+            # NEW: auto-linking logic
+            link_to_diagnostic(upload)
+            register_device_activity(device_id)
+
+            UploadLog.objects.create(
+                device_id=device_id,
+                upload_type='RAW_FRAME',
+                success=True,
+                status_code=201,
+                filename=uploaded_file.name
+            )
+
+            return Response(
+                {
+                    "message": "Raw frame received successfully",
+                    "upload_id": upload.id,
+                    "device_id": device_id,
+                    "filename": uploaded_file.name,
+                    "size_bytes": uploaded_file.size,
+                },
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            UploadLog.objects.create(
+                device_id=device_id,
+                upload_type='RAW_FRAME',
+                success=False,
+                error_message=str(e),
+                status_code=500,
+                filename=uploaded_file.name if uploaded_file else None
+            )
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # -------------------------------------------------
@@ -203,116 +243,137 @@ class DiagnosticUploadView(APIView):
         data = request.data
         device_id = data.get("device_id") or request.headers.get("X-Device-ID") or "UNKNOWN_DEVICE"
         
-        # Split payload components
-        mspm0 = data.get("MSPM0", {})
-        stm = data.get("STM", {})
-        
-        # Parse Device Date
-        date_str = data.get("Date")
-        device_dt = None
-        if date_str:
-            try:
-                naive_dt = datetime.strptime(date_str, "%Y%m%d%H%M")
-                device_dt = timezone.make_aware(naive_dt, pytz.UTC)
-            except (ValueError, TypeError):
-                pass
-
-        # 1. Check for command confirmation
-        confirmed_id = mspm0.get("confirmed_command_id") or data.get("confirmed_command_id")
-        if confirmed_id:
-            DeviceCommand.objects.filter(id=confirmed_id, device_id=device_id, status='SENT').update(status='COMPLETED')
-
-        # 2. Create diagnostic record
-        diagnostic = DeviceDiagnostic.objects.create(
-            device_id=device_id,
-            device_timestamp=device_dt,
-            raw_payload=data,
-            # MSPM0 Telemetry
-            soc=mspm0.get("soc"),
-            soh=mspm0.get("soh"),
-            cycles=mspm0.get("cycles"),
-            lowbattery=bool(mspm0.get("lowbattery", False)),
-            vbat=mspm0.get("vbat"),
-            ibat=mspm0.get("ibat"),
-            vchg=mspm0.get("vchg"),
-            vsys=mspm0.get("vsys"),
-            ichg=mspm0.get("ichg"),
-            avgi=mspm0.get("avgi"),
-            avgpwr=mspm0.get("avgpwr"),
-            gtmp=mspm0.get("gtmp"),
-            ctmp=mspm0.get("ctmp"),
-            btmp=mspm0.get("btmp"),
-            state=mspm0.get("state"),
-            wake=mspm0.get("wake"),
-            adapter=bool(mspm0.get("adapter", False)),
-            safety=mspm0.get("safety"),
-            battstat=mspm0.get("battstat"),
-            chgflags=mspm0.get("chgflags"),
-            faultflags=mspm0.get("faultflags"),
-            chgstat=mspm0.get("chgstat"),
-            # MSPM0 Config Snapshot
-            cfg_wake_interval=mspm0.get("wake_interval"),
-            cfg_vreg=mspm0.get("vreg"),
-            cfg_ichg=mspm0.get("cfg_ichg"),
-            cfg_iindpm=mspm0.get("iindpm"),
-            cfg_vindpm=mspm0.get("vindpm"),
-            cfg_vsysmin=mspm0.get("vsysmin"),
-            cfg_iprechg=mspm0.get("iprechg"),
-            cfg_iterm=mspm0.get("iterm"),
-            # STM Connectivity
-            lte_stat=stm.get("lte_stat"),
-            lte_sig=stm.get("lte_sig"),
-            sim_pres=bool(stm.get("sim_pres", False)),
-            sim_num=stm.get("sim_num"),
-            net=stm.get("net"),
-            wifi_stat=stm.get("wifi_stat"),
-            last_comm_epoch=stm.get("last_comm"),
-            sd_pres=bool(stm.get("sd_pres", False)),
-            sd_free=stm.get("sd_free"),
-            lte_sent=stm.get("lte_sent"),
-            cam_res=stm.get("cam_res"),
-        )
-
-        perform_retroactive_linking(diagnostic)
-
-        # 3. Check for pending commands
-        response_data = {
-            "message": "Diagnostic received",
-            "id": diagnostic.id,
-            "device_id": device_id,
-            "timestamp_linked": bool(device_dt)
-        }
-
-        pending_command = DeviceCommand.objects.filter(device_id=device_id, status='PENDING').order_by('-created_at').first()
-        if pending_command:
-            now = timezone.now()
-            payload = pending_command.payload
+        try:
+            # Split payload components
+            mspm0 = data.get("MSPM0", {})
+            stm = data.get("STM", {})
             
-            response_data["configuration"] = {
-                "command_id": pending_command.id,
-                "rtc": {
-                    "year": now.year,
-                    "month": now.month,
-                    "day": now.day,
-                    "hour": now.hour,
-                    "minute": now.minute,
-                    "second": now.second,
-                    "wake_interval_minutes": payload.get("wake_interval_minutes", 10)
-                },
-                "charger": {
-                    "vreg_mV": payload.get("vreg_mV", 4200),
-                    "ichg_mA": payload.get("ichg_mA", 500),
-                    "iindpm_mA": payload.get("iindpm_mA", 1500),
-                    "vindpm_mV": payload.get("vindpm_mV", 4500),
-                    "vsysmin_mV": payload.get("vsysmin_mV", 3500),
-                    "iprechg_mA": payload.get("iprechg_mA", 50),
-                    "iterm_mA": payload.get("iterm_mA", 50)
-                }
-            }
-            pending_command.status = 'SENT'
-            pending_command.save()
+            # Parse Device Date
+            date_str = data.get("Date")
+            device_dt = None
+            if date_str:
+                try:
+                    naive_dt = datetime.strptime(date_str, "%Y%m%d%H%M")
+                    device_dt = timezone.make_aware(naive_dt, pytz.UTC)
+                except (ValueError, TypeError):
+                    pass
 
-        return Response(response_data, status=status.HTTP_201_CREATED)
+            # 1. Check for command confirmation
+            confirmed_id = mspm0.get("confirmed_command_id") or data.get("confirmed_command_id")
+            if confirmed_id:
+                DeviceCommand.objects.filter(id=confirmed_id, device_id=device_id, status='SENT').update(status='COMPLETED')
+            
+            # Any remaining SENT commands for this device are considered FAILED 
+            # because the device woke up but didn't confirm them.
+            DeviceCommand.objects.filter(device_id=device_id, status='SENT').update(status='FAILED')
+
+            # 2. Create diagnostic record
+            diagnostic = DeviceDiagnostic.objects.create(
+                device_id=device_id,
+                device_timestamp=device_dt,
+                raw_payload=data,
+                # MSPM0 Telemetry
+                soc=mspm0.get("soc"),
+                soh=mspm0.get("soh"),
+                cycles=mspm0.get("cycles"),
+                lowbattery=bool(mspm0.get("lowbattery", False)),
+                vbat=mspm0.get("vbat"),
+                ibat=mspm0.get("ibat"),
+                vchg=mspm0.get("vchg"),
+                vsys=mspm0.get("vsys"),
+                ichg=mspm0.get("ichg"),
+                avgi=mspm0.get("avgi"),
+                avgpwr=mspm0.get("avgpwr"),
+                gtmp=mspm0.get("gtmp"),
+                ctmp=mspm0.get("ctmp"),
+                btmp=mspm0.get("btmp"),
+                state=mspm0.get("state"),
+                wake=mspm0.get("wake"),
+                adapter=bool(mspm0.get("adapter", False)),
+                safety=mspm0.get("safety"),
+                battstat=mspm0.get("battstat"),
+                chgflags=mspm0.get("chgflags"),
+                faultflags=mspm0.get("faultflags"),
+                chgstat=mspm0.get("chgstat"),
+                # MSPM0 Config Snapshot
+                cfg_wake_interval=mspm0.get("wake_interval"),
+                cfg_vreg=mspm0.get("vreg"),
+                cfg_ichg=mspm0.get("cfg_ichg"),
+                cfg_iindpm=mspm0.get("iindpm"),
+                cfg_vindpm=mspm0.get("vindpm"),
+                cfg_vsysmin=mspm0.get("vsysmin"),
+                cfg_iprechg=mspm0.get("iprechg"),
+                cfg_iterm=mspm0.get("iterm"),
+                # STM Connectivity
+                lte_stat=stm.get("lte_stat"),
+                lte_sig=stm.get("lte_sig"),
+                sim_pres=bool(stm.get("sim_pres", False)),
+                sim_num=stm.get("sim_num"),
+                net=stm.get("net"),
+                wifi_stat=stm.get("wifi_stat"),
+                last_comm_epoch=stm.get("last_comm"),
+                sd_pres=bool(stm.get("sd_pres", False)),
+                sd_free=stm.get("sd_free"),
+                lte_sent=stm.get("lte_sent"),
+                cam_res=stm.get("cam_res"),
+            )
+
+            perform_retroactive_linking(diagnostic)
+            register_device_activity(device_id)
+
+            # 3. Check for pending commands
+            response_data = {
+                "message": "Diagnostic received",
+                "id": diagnostic.id,
+                "device_id": device_id,
+                "timestamp_linked": bool(device_dt)
+            }
+
+            pending_command = DeviceCommand.objects.filter(device_id=device_id, status='PENDING').order_by('-created_at').first()
+            if pending_command:
+                now = timezone.now()
+                payload = pending_command.payload
+                
+                response_data["configuration"] = {
+                    "command_id": pending_command.id,
+                    "rtc": {
+                        "year": now.year,
+                        "month": now.month,
+                        "day": now.day,
+                        "hour": now.hour,
+                        "minute": now.minute,
+                        "second": now.second,
+                        "wake_interval_minutes": payload.get("wake_interval_minutes", 10)
+                    },
+                    "charger": {
+                        "vreg_mV": payload.get("vreg_mV", 4200),
+                        "ichg_mA": payload.get("ichg_mA", 500),
+                        "iindpm_mA": payload.get("iindpm_mA", 1500),
+                        "vindpm_mV": payload.get("vindpm_mV", 4500),
+                        "vsysmin_mV": payload.get("vsysmin_mV", 3500),
+                        "iprechg_mA": payload.get("iprechg_mA", 50),
+                        "iterm_mA": payload.get("iterm_mA", 50)
+                    }
+                }
+                pending_command.status = 'SENT'
+                pending_command.save()
+
+            UploadLog.objects.create(
+                device_id=device_id,
+                upload_type='DIAGNOSTIC',
+                success=True,
+                status_code=201
+            )
+            return Response(response_data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            UploadLog.objects.create(
+                device_id=device_id,
+                upload_type='DIAGNOSTIC',
+                success=False,
+                error_message=str(e),
+                status_code=500
+            )
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DeviceImageUploadView(APIView):
@@ -321,33 +382,6 @@ class DeviceImageUploadView(APIView):
 
     def post(self, request, format=None):
         uploaded_file = None
-
-
-        if isinstance(request.data, bytes) and request.data:
-            from django.core.files.uploadedfile import InMemoryUploadedFile
-            import io
-            
-            # Use filename from query params if available, else a default
-            fname = request.query_params.get("filename", "upload.bin")
-            
-            uploaded_file = InMemoryUploadedFile(
-                file=io.BytesIO(request.data),
-                field_name="file",
-                name=fname,
-                content_type="application/octet-stream",
-                size=len(request.data),
-                charset=None
-            )
-
-        if not uploaded_file:
-            uploaded_file = request.FILES.get("file")
-
-        if not uploaded_file:
-            return Response({
-                "error": "No file content detected.",
-                "debug_data_type": str(type(request.data)),
-            }, status=status.HTTP_400_BAD_REQUEST)
-
         device_id = (
             request.POST.get("device_id")            # LTE multipart form field
             or request.query_params.get("deviceId")  # WiFi URL param
@@ -355,33 +389,86 @@ class DeviceImageUploadView(APIView):
             or "UNKNOWN_DEVICE"
         )
 
-        if not hasattr(uploaded_file, 'name') or not uploaded_file.name:
-            url_filename = request.query_params.get("filename")
-            if url_filename:
-                uploaded_file.name = decode_wifi_filename(url_filename)
+        try:
+            if isinstance(request.data, bytes) and request.data:
+                from django.core.files.uploadedfile import InMemoryUploadedFile
+                import io
+                
+                # Use filename from query params if available, else a default
+                fname = request.query_params.get("filename", "upload.bin")
+                
+                uploaded_file = InMemoryUploadedFile(
+                    file=io.BytesIO(request.data),
+                    field_name="file",
+                    name=fname,
+                    content_type="application/octet-stream",
+                    size=len(request.data),
+                    charset=None
+                )
+
+            if not uploaded_file:
+                uploaded_file = request.FILES.get("file")
+
+            if not uploaded_file:
+                error_msg = "No file content detected."
+                UploadLog.objects.create(
+                    device_id=device_id,
+                    upload_type='IMAGE',
+                    success=False,
+                    error_message=error_msg,
+                    status_code=400
+                )
+                return Response({
+                    "error": error_msg,
+                    "debug_data_type": str(type(request.data)),
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if not hasattr(uploaded_file, 'name') or not uploaded_file.name:
+                url_filename = request.query_params.get("filename")
+                if url_filename:
+                    uploaded_file.name = decode_wifi_filename(url_filename)
+                else:
+                    uploaded_file.name = f"upload_{timezone.now().strftime('%Y%m%d%H%M%S')}.bin"
             else:
-                uploaded_file.name = f"upload_{timezone.now().strftime('%Y%m%d%H%M%S')}.bin"
-        else:
-            # Also decode existing name if it came from octet-stream block
-            uploaded_file.name = decode_wifi_filename(uploaded_file.name)
+                # Also decode existing name if it came from octet-stream block
+                uploaded_file.name = decode_wifi_filename(uploaded_file.name)
 
-        device_timestamp = parse_device_timestamp(uploaded_file.name)
+            device_timestamp = parse_device_timestamp(uploaded_file.name)
 
-        image = DeviceImage.objects.create(
-            image_file=uploaded_file,
-            device_id=device_id,
-            device_timestamp=device_timestamp
-        )
+            image = DeviceImage.objects.create(
+                image_file=uploaded_file,
+                device_id=device_id,
+                device_timestamp=device_timestamp
+            )
 
-        link_to_diagnostic(image)
+            link_to_diagnostic(image)
+            register_device_activity(device_id)
 
-        return Response({
-            "message": "Image received successfully",
-            "id": image.id,
-            "device_id": device_id,
-            "filename": uploaded_file.name,
-            "parser_used": request.content_type
-        }, status=status.HTTP_201_CREATED)
+            UploadLog.objects.create(
+                device_id=device_id,
+                upload_type='IMAGE',
+                success=True,
+                status_code=201,
+                filename=uploaded_file.name
+            )
+
+            return Response({
+                "message": "Image received successfully",
+                "id": image.id,
+                "device_id": device_id,
+                "filename": uploaded_file.name,
+                "parser_used": request.content_type
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            UploadLog.objects.create(
+                device_id=device_id,
+                upload_type='IMAGE',
+                success=False,
+                error_message=str(e),
+                status_code=500,
+                filename=uploaded_file.name if uploaded_file else None
+            )
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # -------------------------------------------------
@@ -482,16 +569,33 @@ def view_uploads(request):
 
 def dashboard_view(request):
     """Main dashboard with summary analytics"""
-    devices = DeviceDiagnostic.objects.values('device_id').distinct()
     recent_diagnostics = DeviceDiagnostic.objects.all().order_by('-received_at')[:10]
     recent_images = DeviceImage.objects.all().order_by('-uploaded_at')[:8]
     
+    # Last 7 days chart data
+    seven_days_ago = timezone.now() - timedelta(days=7)
+    daily_intake = DeviceDiagnostic.objects.filter(received_at__gte=seven_days_ago) \
+        .annotate(date=TruncDate('received_at')) \
+        .values('date') \
+        .annotate(count=Count('id')) \
+        .order_by('date')
+    
+    chart_labels = []
+    chart_data = []
+    for entry in daily_intake:
+        if entry['date']:
+            chart_labels.append(entry['date'].strftime('%b %d'))
+            chart_data.append(entry['count'])
+    
     context = {
-        'device_count': devices.count(),
+        'device_count': Device.objects.count(),
         'diagnostic_count': DeviceDiagnostic.objects.count(),
         'image_count': DeviceImage.objects.count(),
+        'raw_frame_count': RawFrameUpload.objects.count(),
         'recent_diagnostics': recent_diagnostics,
         'recent_images': recent_images,
+        'activity_labels': json.dumps(chart_labels),
+        'activity_data': json.dumps(chart_data),
     }
     return render(request, 'dashboard.html', context)
 
@@ -499,6 +603,8 @@ def dashboard_view(request):
 def device_list_view(request):
     """List of unique devices and their last status"""
     from django.db.models import Max, OuterRef, Subquery
+    
+    query = request.GET.get('q', '')
     
     # Subquery to get the latest diagnostic for each device
     latest_diag_ids = DeviceDiagnostic.objects.filter(
@@ -508,9 +614,19 @@ def device_list_view(request):
     # Distinct device list with their latest status
     device_stats = DeviceDiagnostic.objects.filter(
         id__in=Subquery(latest_diag_ids)
-    ).order_by('-received_at')
+    )
+    
+    if query:
+        device_stats = device_stats.filter(device_id__icontains=query)
+        
+    device_stats = list(device_stats.order_by('-received_at'))
+    
+    now = timezone.now()
+    thirty_mins_ago = now - timedelta(minutes=30)
+    for device in device_stats:
+        device.is_online = device.received_at >= thirty_mins_ago if device.received_at else False
 
-    return render(request, 'device_list.html', {'devices': device_stats})
+    return render(request, 'device_list.html', {'devices': device_stats, 'query': query})
 
 
 def device_detail_view(request, device_id):
@@ -519,7 +635,7 @@ def device_detail_view(request, device_id):
     images = DeviceImage.objects.filter(device_id=device_id).order_by('-uploaded_at')[:20]
     
     # Prepare data for Chart.js (last 20 points)
-    chart_data = list(diagnostics.order_by('received_at')[:20].values('received_at', 'soc', 'vbat', 'btmp'))
+    chart_data = list(diagnostics.order_by('received_at')[:20].values('received_at', 'soc', 'vbat', 'btmp', 'vchg'))
     
     return render(request, 'device_detail.html', {
         'device_id': device_id,
@@ -532,12 +648,18 @@ def device_detail_view(request, device_id):
 
 def diagnostic_list_view(request):
     """Paginated list of all diagnostics"""
-    diags = DeviceDiagnostic.objects.all().order_by('-received_at')
+    query = request.GET.get('q', '')
+    diags = DeviceDiagnostic.objects.all()
+    
+    if query:
+        diags = diags.filter(device_id__icontains=query)
+        
+    diags = diags.order_by('-received_at')
     paginator = Paginator(diags, 50)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
-    return render(request, 'diagnostic_list.html', {'page_obj': page_obj})
+    return render(request, 'diagnostic_list.html', {'page_obj': page_obj, 'query': query})
 
 
 def diagnostic_detail_view(request, diag_id):
@@ -615,10 +737,9 @@ def delete_upload(request, upload_id):
     upload = get_object_or_404(RawFrameUpload, id=upload_id)
     
     try:
-        # Delete the file from disk
-        file_path = upload.raw_file.path
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # Delete the file from disk using Django's storage API
+        if upload.raw_file:
+            upload.raw_file.delete(save=False)
 
         # Delete the DB record
         upload.delete()
@@ -671,14 +792,14 @@ def delete_diagnostic_cascade_view(request, diag_id):
     
     # Delete related images and their files
     for img in diag.images.all():
-        if img.image_file and os.path.exists(img.image_file.path):
-            os.remove(img.image_file.path)
+        if img.image_file:
+            img.image_file.delete(save=False)
         img.delete()
         
     # Delete related raw frames and their files
     for frame in diag.raw_frames.all():
-        if frame.raw_file and os.path.exists(frame.raw_file.path):
-            os.remove(frame.raw_file.path)
+        if frame.raw_file:
+            frame.raw_file.delete(save=False)
         frame.delete()
         
     # Delete the diagnostic itself
@@ -695,21 +816,21 @@ def delete_image_cascade_view(request, img_id):
     diag = img.linked_diagnostic
     
     # Delete image file
-    if img.image_file and os.path.exists(img.image_file.path):
-        os.remove(img.image_file.path)
+    if img.image_file:
+        img.image_file.delete(save=False)
     img.delete()
     
     # If there's a linked diagnostic, delete it too (and other media linked to it)
     if diag:
         # Re-use the cascade logic
         for other_img in diag.images.all():
-            if other_img.image_file and os.path.exists(other_img.image_file.path):
-                os.remove(other_img.image_file.path)
+            if other_img.image_file:
+                other_img.image_file.delete(save=False)
             other_img.delete()
             
         for frame in diag.raw_frames.all():
-            if frame.raw_file and os.path.exists(frame.raw_file.path):
-                os.remove(frame.raw_file.path)
+            if frame.raw_file:
+                frame.raw_file.delete(save=False)
             frame.delete()
             
         diag.delete()
@@ -718,3 +839,61 @@ def delete_image_cascade_view(request, img_id):
         messages.success(request, f"Image #{img_id} deleted.")
         
     return redirect('device_detail', device_id=device_id)
+
+def delete_image_view(request, img_id):
+    """Simple delete for an image (no cascade) and redirect to gallery"""
+    img = get_object_or_404(DeviceImage, id=img_id)
+    
+    # Delete image file
+    if img.image_file:
+        img.image_file.delete(save=False)
+    img.delete()
+    
+    messages.success(request, f"Image #{img_id} deleted.")
+    return redirect('image_gallery')
+
+
+def download_image_view(request, img_id):
+    """Download a single image file"""
+    img = get_object_or_404(DeviceImage, id=img_id)
+    
+    response = HttpResponse(
+        img.image_file.read(),
+        content_type='image/jpeg' # Adjust if needed, but usually jpeg/png
+    )
+    # Get extension
+    ext = os.path.splitext(img.image_file.name)[1]
+    response['Content-Disposition'] = f'attachment; filename="{img.device_id}_{img.id}{ext}"'
+    
+    return response
+
+
+def download_device_diagnostics_view(request, device_id):
+    """Export all diagnostics for a device as a CSV file"""
+    diagnostics = DeviceDiagnostic.objects.filter(device_id=device_id).order_by('-received_at')
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{device_id}_diagnostics.csv"'
+    
+    writer = csv.writer(response)
+    
+    # Headers - using some key fields
+    headers = [
+        'ID', 'Received At', 'Device Timestamp', 'SOC', 'SOH', 'Cycles', 
+        'VBat (mV)', 'IBat (mA)', 'VChg (mV)', 'VSys (mV)', 'IChg (mA)',
+        'GTmp (C)', 'CTmp (C)', 'BTmp (dC)', 'State', 'Wake', 'LTE Stat', 'LTE Sig'
+    ]
+    writer.writerow(headers)
+    
+    for d in diagnostics:
+        writer.writerow([
+            d.id,
+            d.received_at.isoformat() if d.received_at else '',
+            d.device_timestamp.isoformat() if d.device_timestamp else '',
+            d.soc, d.soh, d.cycles,
+            d.vbat, d.ibat, d.vchg, d.vsys, d.ichg,
+            d.gtmp, d.ctmp, d.btmp,
+            d.state, d.wake, d.lte_stat, d.lte_sig
+        ])
+        
+    return response

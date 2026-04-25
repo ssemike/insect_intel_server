@@ -19,6 +19,9 @@ from .views import (
     device_configure_view,
     delete_diagnostic_cascade_view,
     delete_image_cascade_view,
+    delete_image_view,
+    download_image_view,
+    download_device_diagnostics_view,
     TimeAPIView
 )
 
@@ -52,6 +55,11 @@ urlpatterns = [
     # Deletions
     path('diagnostics/<int:diag_id>/delete/', delete_diagnostic_cascade_view, name='delete_diagnostic_cascade'),
     path('images/<int:img_id>/delete/', delete_image_cascade_view, name='delete_image_cascade'),
+    path('images/<int:img_id>/delete-simple/', delete_image_view, name='delete_image'),
+
+    # Downloads
+    path('images/<int:img_id>/download/', download_image_view, name='download_image'),
+    path('devices/<str:device_id>/download/diagnostics/', download_device_diagnostics_view, name='download_diagnostics'),
 
 ]
 

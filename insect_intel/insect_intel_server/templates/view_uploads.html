@@ -1,80 +1,15 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Uploaded Raw Frames</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            background: #f5f5f5;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 { color: #333; margin-bottom: 10px; }
-        .stats { color: #666; margin-bottom: 20px; font-size: 14px; }
+{% extends 'base.html' %}
 
-        /* Messages */
-        .message {
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-        }
-        .message.success { background: #d4edda; color: #155724; }
-        .message.error   { background: #f8d7da; color: #721c24; }
+{% block title %}Raw Frames | Insect Intel{% endblock %}
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        th { background: #4CAF50; color: white; padding: 12px; text-align: left; font-weight: 600; }
-        td { padding: 12px; border-bottom: 1px solid #ddd; }
-        tr:hover { background: #f9f9f9; }
-        .actions a { color: #4CAF50; text-decoration: none; margin-right: 10px; }
-        .actions a:hover { text-decoration: underline; }
+{% block content %}
+<div class="page-header animate-in">
+    <h1 class="page-title">Raw Frame Uploads</h1>
+    <p class="page-subtitle">Historical archive of all unstructured data uploads. Total: {{ total_count }}</p>
+</div>
 
-        .pagination {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: center;
-            margin-top: 20px;
-        }
-        .pagination a, .pagination span {
-            padding: 8px 12px;
-            background: #4CAF50;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-        }
-        .pagination span { background: #ddd; color: #333; }
-        .pagination a:hover { background: #45a049; }
-
-        .empty { text-align: center; padding: 40px; color: #999; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>📦 Uploaded Raw Frames</h1>
-        <div class="stats">Total uploads: {{ total_count }}</div>
-
-        <!-- Messages -->
-        {% if messages %}
-            {% for message in messages %}
-                <div class="message {{ message.tags }}">
-                    {{ message }}
-                </div>
-            {% endfor %}
-        {% endif %}
-
-        {% if page_obj %}
+<div class="card animate-in" style="padding: 0; overflow: hidden; animation-delay: 0.1s;">
+    <div class="table-container" style="border: none; margin-bottom: 0;">
         <table>
             <thead>
                 <tr>
@@ -82,50 +17,60 @@
                     <th>Device ID</th>
                     <th>Uploaded At</th>
                     <th>File Size</th>
-                    <th>Actions</th>
+                    <th>Linked Diag</th>
+                    <th style="text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for upload in page_obj %}
-                <tr>
-                    <td><strong>#{{ upload.id }}</strong></td>
-                    <td>{{ upload.device_id }}</td>
-                    <td>{{ upload.uploaded_at|date:"Y-m-d H:i:s" }}</td>
-                    <td>{{ upload.raw_file.size|filesizeformat }}</td>
-                    <td class="actions">
-                        <a href="{% url 'upload_detail' upload.id %}">👁️ View</a>
-                        <a href="{% url 'download_upload' upload.id %}">⬇️ Download</a>
-                        <a href="{% url 'delete_upload' upload.id %}" 
-                           onclick="return confirm('Are you sure you want to delete this upload?');">
-                           🗑️ Delete
-                        </a>
+                <tr onclick="window.location='{% url 'upload_detail' upload.id %}'" style="cursor: pointer;">
+                    <td class="mono" style="font-weight: 600; color: var(--primary);">#{{ upload.id }}</td>
+                    <td class="mono">{{ upload.device_id }}</td>
+                    <td class="text-muted">{{ upload.uploaded_at|date:"Y-m-d H:i:s" }}</td>
+                    <td class="mono">{{ upload.raw_file.size|filesizeformat }}</td>
+                    <td>
+                        {% if upload.linked_diagnostic %}
+                            <a href="{% url 'diagnostic_detail' upload.linked_diagnostic.id %}" class="badge badge-primary" onclick="event.stopPropagation()">#{{ upload.linked_diagnostic.id }}</a>
+                        {% else %}
+                            <span class="text-muted" style="font-size: 0.75rem;">Orphan</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;" class="actions">
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <a href="{% url 'download_upload' upload.id %}" class="badge badge-success" style="text-decoration: none;" onclick="event.stopPropagation()">Download</a>
+                            <a href="{% url 'delete_upload' upload.id %}" class="badge badge-danger" style="text-decoration: none;" 
+                               onclick="event.stopPropagation(); return confirm('Permanently delete this upload?');">Delete</a>
+                        </div>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="empty">No uploads yet</td>
+                    <td colspan="6" style="text-align: center; padding: 4rem;" class="text-muted">
+                        No raw frame uploads found in the system.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-
-        <!-- Pagination -->
-        {% if page_obj.has_other_pages %}
-        <div class="pagination">
-            {% if page_obj.has_previous %}
-                <a href="?page=1">⏮️ First</a>
-                <a href="?page={{ page_obj.previous_page_number }}">⬅️ Previous</a>
-            {% endif %}
-            
-            <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-            
-            {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}">Next ➡️</a>
-                <a href="?page={{ page_obj.paginator.num_pages }}">Last ⏭️</a>
-            {% endif %}
-        </div>
-        {% endif %}
-        {% endif %}
     </div>
-</body>
-</html>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 3rem;" class="animate-in">
+    {% if page_obj.has_previous %}
+    <a href="?page=1" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">First</a>
+    <a href="?page={{ page_obj.previous_page_number }}" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">&larr; Prev</a>
+    {% endif %}
+    
+    <span class="nav-link" style="width: auto; padding: 0.5rem 1rem; background: var(--bg-card); cursor: default; border: 1px solid var(--primary); color: var(--text-main);">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </span>
+
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">Next &rarr;</a>
+    <a href="?page={{ page_obj.paginator.num_pages }}" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">Last</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -3,9 +3,11 @@
 {% block title %}Dashboard | Insect Intel{% endblock %}
 
 {% block content %}
-<div class="page-header animate-in">
-    <h1 class="page-title">Overview</h1>
-    <p class="page-subtitle">Real-time status and recent activity from all connected devices.</p>
+<div class="page-header animate-in" style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+        <h1 class="page-title">Overview</h1>
+        <p class="page-subtitle">Real-time status and recent activity from all connected devices.</p>
+    </div>
 </div>
 
 <div class="dashboard-grid animate-in" style="animation-delay: 0.1s;">
@@ -18,8 +20,8 @@
         <div class="stat-value">{{ diagnostic_count }}</div>
     </div>
     <div class="card">
-        <div class="card-title">Telemetry Packets</div>
-        <div class="stat-value">{{ diagnostic_count }}</div>
+        <div class="card-title">Raw Frames</div>
+        <div class="stat-value">{{ raw_frame_count }}</div>
     </div>
     <div class="card">
         <div class="card-title">Images Captured</div>
@@ -84,4 +86,59 @@
         </div>
     </div>
 </div>
+
+<div class="card animate-in" style="margin-top: 2rem; margin-bottom: 2rem; animation-delay: 0.3s; height: 350px;">
+    <div class="card-title">Telemetry Intake (Last 7 Days)</div>
+    <div style="height: 100%; width: 100%;">
+        <canvas id="activityChart"></canvas>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    // Automatically refresh the page every 30 seconds
+    setTimeout(() => location.reload(), 30000);
+
+    const activityLabels = {{ activity_labels|safe }};
+    const activityData = {{ activity_data|safe }};
+    
+    if (activityLabels.length > 0) {
+        const ctx = document.getElementById('activityChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: activityLabels,
+                datasets: [{
+                    label: 'Telemetry Packets Received',
+                    data: activityData,
+                    borderColor: '#58a6ff',
+                    backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true,
+                    pointBackgroundColor: '#58a6ff',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#8b949e', precision: 0 }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#8b949e' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}
 {% endblock %}

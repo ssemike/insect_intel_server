@@ -11,9 +11,18 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header animate-in">
-    <h1 class="page-title">Devices</h1>
-    <p class="page-subtitle">Inventory of all unique units currently connected to the server.</p>
+<div class="page-header animate-in" style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+        <h1 class="page-title">Devices</h1>
+        <p class="page-subtitle">Inventory of all unique units currently connected to the server.</p>
+    </div>
+    <form method="GET" style="display: flex; gap: 0.5rem;">
+        <input type="text" name="q" value="{{ query }}" placeholder="Search device ID..." style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-main);">
+        <button type="submit" class="nav-link" style="padding: 0.5rem 1rem; width: auto; justify-content: center;">Search</button>
+        {% if query %}
+        <a href="?" class="nav-link" style="padding: 0.5rem 1rem; width: auto; justify-content: center; background: rgba(248, 81, 73, 0.1); color: var(--danger);">Clear</a>
+        {% endif %}
+    </form>
 </div>
 
 <div class="table-container animate-in" style="animation-delay: 0.1s;">
@@ -21,7 +30,7 @@
         <thead>
             <tr>
                 <th>Device ID</th>
-                <th>Last Seen</th>
+                <th>Server Reception</th>
                 <th>SOH</th>
                 <th>Battery</th>
                 <th>Voltage</th>
@@ -34,6 +43,11 @@
             <tr {% if device.lowbattery %}style="background: rgba(248, 81, 73, 0.05); border-left: 4px solid var(--danger);"{% endif %}>
                 <td>
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        {% if device.is_online %}
+                        <div title="Online (Seen recently)" style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; box-shadow: 0 0 8px var(--success); animation: pulse 2s infinite;"></div>
+                        {% else %}
+                        <div title="Offline" style="width: 8px; height: 8px; background: var(--border); border-radius: 50%;"></div>
+                        {% endif %}
                         <span class="mono" style="font-weight: 600;">{{ device.device_id }}</span>
                         {% if device.lowbattery %}
                         <span class="badge badge-danger" style="animation: pulse 2s infinite; font-size: 0.7rem;">CRITICAL</span>

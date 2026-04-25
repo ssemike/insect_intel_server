@@ -76,8 +76,7 @@ text-transform: uppercase;
     <div style="display: flex; align-items: center; justify-content: space-between;">
         <div>
             <h1 class="page-title mono">{{ device_id }}</h1>
-            <p class="page-subtitle">Hardware ID: {{ device_id }} | Last seen: {{ latest.received_at|date:"Y-m-d H:i:s"
-                }}</p>
+            <p class="page-subtitle">Hardware ID: {{ device_id }} | Server Reception: {{ latest.received_at|date:"Y-m-d H:i:s" }}</p>
         </div>
         <div style="display: flex; gap: 1rem;">
             <div class="card" style="padding: 0.75rem 1.5rem; text-align: center;">
@@ -100,6 +99,10 @@ text-transform: uppercase;
                 <div class="card-title" style="margin-bottom: 0.25rem;">Temp</div>
                 <div class="stat-value" style="font-size: 1.2rem;">{{ latest.btmp_c|default:"0.0" }}°C</div>
             </div>
+            <a href="{% url 'download_diagnostics' device_id %}" class="nav-link"
+                style="width: auto; height: fit-content; align-self: center; background: rgba(255,255,255,0.05); color: var(--text-main); font-weight: 600; border: 1px solid var(--border);">
+                Export Diagnostics (CSV)
+            </a>
             <a href="{% url 'device_configure' device_id %}" class="nav-link"
                 style="width: auto; height: fit-content; align-self: center; background: var(--primary); color: #000; font-weight: 600; border: none;">
                 Configure
@@ -158,12 +161,12 @@ text-transform: uppercase;
             <span class="text-muted">Camera Resolution</span>
             <span class="mono">{{ latest.cam_res|default:"-" }}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-            <span class="text-muted">Last Comm</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <span class="text-muted">Prior Connection</span>
             <span class="mono text-muted">{{ latest.last_comm_time|date:"Y-m-d H:i:s"|default:"-" }}</span>
         </div>
         <div style="display: flex; justify-content: space-between;">
-            <span class="text-muted">Sync Time</span>
+            <span class="text-muted">Internal Clock</span>
             <span class="mono">{{ latest.device_timestamp|date:"H:i:s"|default:"-" }}</span>
         </div>
     </div>
@@ -179,11 +182,19 @@ text-transform: uppercase;
             <div class="gallery-timestamp">
                 {{ img.device_timestamp|date:"Y-m-d H:i"|default:img.uploaded_at|date:"H:i" }}
             </div>
-            <a href="{% url 'delete_image_cascade' img.id %}"
-                onclick="return confirm('Delete this image and its linked diagnostic data?')"
-                style="position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(248, 81, 73, 0.8); color: white; border: none; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.8rem; z-index: 10;">
-                &times;
-            </a>
+            <div style="position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.25rem; z-index: 10;">
+                <a href="{% url 'download_image' img.id %}" 
+                    title="Download"
+                    style="background: rgba(88, 166, 255, 0.9); color: white; border: none; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.8rem;">
+                    &darr;
+                </a>
+                <a href="{% url 'delete_image' img.id %}"
+                    title="Delete Image"
+                    onclick="return confirm('Delete this image?')"
+                    style="background: rgba(248, 81, 73, 0.9); color: white; border: none; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.8rem;">
+                    &times;
+                </a>
+            </div>
         </div>
         {% empty %}
         <p class="text-muted">No images available for this device.</p>
@@ -247,6 +258,8 @@ text-transform: uppercase;
     const labels = chartData.map(d => new Date(d.received_at).toLocaleTimeString());
     const socData = chartData.map(d => d.soc);
     const vbatData = chartData.map(d => d.vbat / 100); // Scaled for chart visibility
+    const tempData = chartData.map(d => d.btmp / 10); // Temperature in C
+    const vchgData = chartData.map(d => (d.vchg || 0) / 100); // Scaled for chart visibility
 
     const ctx = document.getElementById('deviceChart').getContext('2d');
     new Chart(ctx, {
@@ -270,6 +283,24 @@ text-transform: uppercase;
                     backgroundColor: 'transparent',
                     tension: 0.4,
                     yAxisID: 'y1'
+                },
+                {
+                    label: 'Temperature (°C)',
+                    data: tempData,
+                    borderColor: '#f85149',
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    yAxisID: 'y1',
+                    hidden: true // Hidden by default to reduce clutter
+                },
+                {
+                    label: 'Charger Voltage (cV)',
+                    data: vchgData,
+                    borderColor: '#d29922', // warning yellow
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    yAxisID: 'y1',
+                    hidden: true // Hidden by default to reduce clutter
                 }
             ]
         },
@@ -305,5 +336,8 @@ text-transform: uppercase;
             }
         }
     });
+
+    // Automatically refresh the page every 30 seconds
+    setTimeout(() => location.reload(), 30000);
 </script>
 {% endblock %}

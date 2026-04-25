@@ -1,5 +1,13 @@
 from django.db import models
 
+class Device(models.Model):
+    device_id = models.CharField(max_length=50, unique=True)
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.device_id
+
 class DeviceDiagnostic(models.Model):
     # Identity
     device_id = models.CharField(max_length=50)
@@ -221,7 +229,9 @@ class RawFrameUpload(models.Model):
 
 
 class DeviceImage(models.Model):
-    image_file = models.ImageField(upload_to='images/%Y/%m/%d/')
+    image_file = models.ImageField(upload_to='images/%Y/%m/%d/', width_field='width', height_field='height')
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
     device_id = models.CharField(max_length=50, blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     device_timestamp = models.DateTimeField(null=True, blank=True)
@@ -230,12 +240,20 @@ class DeviceImage(models.Model):
     def __str__(self):
         return f"Image from {self.device_id} at {self.uploaded_at.isoformat()}"
 
+    @property
+    def megapixels(self):
+        if self.width and self.height:
+            return round((self.width * self.height) / 1_000_000, 1)
+        return None
+
+
 
 class DeviceCommand(models.Model):
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
         ('SENT', 'Sent'),
         ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
     ]
 
     device_id = models.CharField(max_length=50)
@@ -247,3 +265,25 @@ class DeviceCommand(models.Model):
     def __str__(self):
         return f"Command {self.command_type} ({self.status}) for {self.device_id}"
 
+
+class UploadLog(models.Model):
+    UPLOAD_TYPES = [
+        ('DIAGNOSTIC', 'Diagnostic Telemetry'),
+        ('IMAGE', 'Device Image'),
+        ('RAW_FRAME', 'Raw Frame'),
+    ]
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+    device_id = models.CharField(max_length=50, blank=True, null=True)
+    upload_type = models.CharField(max_length=20, choices=UPLOAD_TYPES)
+    success = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True, null=True)
+    status_code = models.IntegerField(null=True, blank=True)
+    filename = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        status = "Success" if self.success else "Failed"
+        return f"{self.upload_type} from {self.device_id} at {self.timestamp} - {status}"

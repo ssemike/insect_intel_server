@@ -218,6 +218,42 @@
             animation: fadeIn 0.4s ease forwards;
         }
 
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            z-index: 9999;
+        }
+        .toast {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            color: var(--text-main);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideInToast 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            transform: translateX(120%);
+            transition: opacity 0.3s ease;
+        }
+        .toast.hide {
+            opacity: 0;
+        }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.warning { border-left: 4px solid var(--warning); }
+        .toast.info { border-left: 4px solid var(--primary); }
+
+        @keyframes slideInToast {
+            to { transform: translateX(0); }
+        }
+
         /* Image Viewer Modal */
         .viewer-modal {
             display: none;
@@ -351,6 +387,30 @@
             if (e.key === 'Escape') closeViewer();
         });
     </script>
+
+    <!-- Toast Notifications -->
+    {% if messages %}
+    <div class="toast-container" id="toastContainer">
+        {% for message in messages %}
+        <div class="toast {{ message.tags }}">
+            <div>{{ message }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast');
+            toasts.forEach((toast, index) => {
+                // Stagger animations if multiple toasts
+                toast.style.animationDelay = `${index * 0.1}s`;
+                setTimeout(() => {
+                    toast.classList.add('hide');
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000 + (index * 100));
+            });
+        });
+    </script>
+    {% endif %}
 
     {% block extra_js %}{% endblock %}
 </body>

@@ -3,9 +3,18 @@
 {% block title %}Diagnostics | Insect Intel{% endblock %}
 
 {% block content %}
-<div class="page-header animate-in">
-    <h1 class="page-title">Diagnostic Logs</h1>
-    <p class="page-subtitle">Full historical telemetry data from all units.</p>
+<div class="page-header animate-in" style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+        <h1 class="page-title">Diagnostic Logs</h1>
+        <p class="page-subtitle">Full historical telemetry data from all units.</p>
+    </div>
+    <form method="GET" style="display: flex; gap: 0.5rem;">
+        <input type="text" name="q" value="{{ query }}" placeholder="Search device ID..." style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-main);">
+        <button type="submit" class="nav-link" style="padding: 0.5rem 1rem; width: auto; justify-content: center;">Search</button>
+        {% if query %}
+        <a href="?" class="nav-link" style="padding: 0.5rem 1rem; width: auto; justify-content: center; background: rgba(248, 81, 73, 0.1); color: var(--danger);">Clear</a>
+        {% endif %}
+    </form>
 </div>
 
 <div class="table-container animate-in" style="animation-delay: 0.1s;">
@@ -64,13 +73,19 @@
 </div>
 
 {% if page_obj.has_other_pages %}
-<div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;" class="animate-in">
+<div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 3rem;" class="animate-in">
     {% if page_obj.has_previous %}
-    <a href="?page={{ page_obj.previous_page_number }}" class="nav-link" style="width: auto;">&larr; Previous</a>
+    <a href="?page=1{% if query %}&q={{ query }}{% endif %}" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">First</a>
+    <a href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">&larr; Prev</a>
     {% endif %}
-    <span style="padding: 0.75rem;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    
+    <span class="nav-link" style="width: auto; padding: 0.5rem 1rem; background: var(--bg-card); cursor: default; border: 1px solid var(--primary); color: var(--text-main);">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </span>
+
     {% if page_obj.has_next %}
-    <a href="?page={{ page_obj.next_page_number }}" class="nav-link" style="width: auto;">Next &rarr;</a>
+    <a href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">Next &rarr;</a>
+    <a href="?page={{ page_obj.paginator.num_pages }}{% if query %}&q={{ query }}{% endif %}" class="nav-link" style="width: auto; padding: 0.5rem 1rem; border: 1px solid var(--border);">Last</a>
     {% endif %}
 </div>
 {% endif %}

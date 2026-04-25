@@ -8,7 +8,7 @@
     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
         <div>
             <h1 class="page-title">Diagnostic Record #{{ diag.id }}</h1>
-            <p class="page-subtitle">Device: <span class="mono">{{ diag.device_id }}</span> | Received at: {{ diag.received_at|date:"Y-m-d H:i:s" }}</p>
+            <p class="page-subtitle">Device: <span class="mono">{{ diag.device_id }}</span> | Server Reception: {{ diag.received_at|date:"Y-m-d H:i:s" }}</p>
         </div>
         <a href="{% url 'delete_diagnostic_cascade' diag.id %}" 
            onclick="return confirm('Are you sure? This will delete the diagnostic and all associated images/files.')"
@@ -146,8 +146,9 @@
             {% for img in images %}
             <div class="zoomable" onclick="openViewer('{{ img.image_file.url }}', '{{ diag.device_id }}', 'Captured: {{ img.device_timestamp|date:'Y-m-d H:i:s' }}')" style="aspect-ratio: 4/3; margin-top: 1rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); position: relative;">
                 <img src="{{ img.image_file.url }}" alt="Associated Capture" style="width: 100%; height: 100%; object-fit: cover;">
-                <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.65rem; padding: 0.25rem 0.5rem;" class="mono">
-                    Device: {{ img.device_timestamp|date:"Y-m-d H:i"|default:"Unknown" }}
+                <div style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); color: white; font-size: 0.65rem; padding: 0.25rem 0.5rem; display: flex; justify-content: space-between;" class="mono">
+                    <span>{{ img.device_timestamp|date:"Y-m-d H:i"|default:"Unknown" }}</span>
+                    <span>{% if img.width %}{{ img.width }}x{{ img.height }} ({{ img.megapixels }}MP){% endif %}</span>
                 </div>
             </div>
             {% endfor %}
